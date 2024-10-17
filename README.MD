@@ -52,7 +52,7 @@
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/cosmaken/imagine-todo-api.git
+   git clone https://github.com/cosmasken/imagine-todo-api.git
    cd imagine-todo-api
 2. **Install Dependencies**
     ```bash
