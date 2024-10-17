@@ -1,6 +1,6 @@
 use actix_web::{get, post, put, delete, web::Bytes, error::PayloadError, middleware, web, App,http::header::AUTHORIZATION, HttpResponse,HttpRequest, HttpServer, Responder,Error, HttpMessage,dev::ServiceRequest, dev::ServiceResponse };
 use utoipa_swagger_ui::SwaggerUi;
-use jsonwebtoken::{encode, decode, Header ,EncodingKey,DecodingKey};
+use jsonwebtoken::{encode, decode, Header ,EncodingKey,DecodingKey,Validation,Algorithm};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -15,7 +15,8 @@ use utoipa::{{OpenApi,ToSchema}};
 use std::time::Duration;
 use chrono::{DateTime, Utc};
 use futures::future::{ok, ready, Ready};
-use std::sync::Arc; // Use Arc for thread-safe sharing
+use std::convert::From;
+use actix_service::Service;
 
 
 
@@ -23,7 +24,32 @@ use std::sync::Arc; // Use Arc for thread-safe sharing
 struct User {
     username: String,
     password: String,
-    is_admin: bool,
+}
+
+// Function to create a JWT
+fn create_jwt(user_id: &str) -> String {
+    let claims = Claims {
+        sub: user_id.to_string(),
+        exp: (chrono::Utc::now() + chrono::Duration::days(1)).timestamp() as usize
+    };
+
+    encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET.as_ref())).unwrap()
+}
+
+// Function to validate a JWT
+fn validate_jwt(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
+    let validation = Validation::new(Algorithm::HS256);
+    let token_data = decode::<Claims>(token, &DecodingKey::from_secret(JWT_SECRET.as_ref()), &validation)?;
+    Ok(token_data.claims)
+}
+
+
+#[derive(Debug)]
+enum DbError {
+    ConnectionError(String),
+    QueryError(String),
+    NotFound(String),
+    // Add other error types as needed
 }
 
 #[derive(Deserialize,ToSchema)]
@@ -56,15 +82,10 @@ struct TodoItem {
 
 
 
-type TodoList = Mutex<HashMap<Uuid, TodoItem>>;
-// In-memory user storage
-//type UserStorage = Mutex<HashMap<String, String>>; // Map of username to hashed password
 
+type TodoList = Mutex<HashMap<Uuid, TodoItem>>;
 // JWT secret
 const JWT_SECRET: &[u8] = b"your_jwt_secret"; // Replace with a secure secret
-
-
-
 // Use a Mutex to wrap the Connection for thread-safe access
 type DbConnection = Mutex<Connection>;
 // Initialize the database
@@ -456,6 +477,3 @@ async fn main() -> std::io::Result<()> {
 async fn index() -> impl Responder {
     HttpResponse::Ok().content_type("text/html").body(include_str!("../static/index.html"))
 }
-
-// curl -X POST http://127.0.0.1:8080/todos -H "Content-Type: application/json" -d '{"title": "Build a Web API", "description": "Create a RESTful API using Actix.", "due_date": "2024-10-25", "status": "in progress"}'
-
