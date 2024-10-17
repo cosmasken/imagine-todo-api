@@ -752,27 +752,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hello-world-actix"
-version = "0.1.0"
-dependencies = [
- "actix-files",
- "actix-rt",
- "actix-web",
- "bcrypt",
- "chrono",
- "dotenv",
- "env_logger",
- "jsonwebtoken",
- "log",
- "rusqlite",
- "serde",
- "serde_json",
- "utoipa",
- "utoipa-swagger-ui",
- "uuid",
-]
-
-[[package]]
 name = "hermit-abi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -850,6 +829,27 @@ checksum = "634d9b1461af396cad843f47fdba5597a4f9e6ddd4bfb6ff5d85028c25cb12f6"
 dependencies = [
  "unicode-bidi",
  "unicode-normalization",
+]
+
+[[package]]
+name = "imagine-todo-api"
+version = "0.1.0"
+dependencies = [
+ "actix-files",
+ "actix-rt",
+ "actix-web",
+ "bcrypt",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "jsonwebtoken",
+ "log",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "utoipa",
+ "utoipa-swagger-ui",
+ "uuid",
 ]
 
 [[package]]

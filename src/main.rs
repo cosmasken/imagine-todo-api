@@ -41,13 +41,15 @@ struct TokenResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 struct TodoItem {
-    #[schema(value_type = String, example = "550e8400-e29b-41d4-a716-446655440000")]
-    id : Uuid,
+   // #[schema(value_type = String, example = "550e8400-e29b-41d4-a716-446655440000")]
+    id : String,
     title: String,
     description: String,
     due_date: Option<String>, // Use Option<String> for optional due date
     status: String, // e.g., "todo", "in progress", "done"
 }
+
+
 
 type TodoList = Mutex<HashMap<Uuid, TodoItem>>;
 // In-memory user storage
@@ -106,15 +108,6 @@ async fn register(db: web::Data<DbConnection>, req: web::Json<RegisterRequest>) 
         Err(err) => HttpResponse::InternalServerError().body(format!("Failed to register user: {}", err)),
     }
 }
-// #[post("/register")]
-// async fn register(db: web::Data<DbConnection>, req: web::Json<RegisterRequest>) -> impl Responder {
-//     let hashed_password = hash(&req.password,DEFAULT_COST).unwrap(); // Hash the password
-//     db.execute(
-//         "INSERT INTO users (username, password) VALUES (?1, ?2)",
-//         params![req.username, hashed_password],
-//     ).unwrap();
-//     HttpResponse::Created().body("User registered.")
-// }
 
 #[utoipa::path(
     post,
@@ -150,33 +143,6 @@ async fn login(db: web::Data<DbConnection>, req: web::Json<LoginRequest>) -> imp
     }
     HttpResponse::Unauthorized().body("Invalid username or password")
 }
-// #[post("/login")]
-// async fn login(db: web::Data<DbConnection>, req: web::Json<LoginRequest>) -> impl Responder {
-//     // Retrieve the user from the database
-//     let mut stmt = db.prepare("SELECT password FROM users WHERE username = ?1").unwrap();
-//     let mut rows = stmt.query(params![req.username]).unwrap();
-
-//     if let Some(row) = rows.next().unwrap() {
-//         let stored_hashed_password: String = row.get(0).unwrap();
-
-//         // Verify the password
-//         if verify(&req.password, &stored_hashed_password).unwrap() {
-//             // Generate a JWT token
-//             let claims = Claims {
-//                 sub: req.username.clone(),
-//                 exp: (chrono::Utc::now() + chrono::Duration::days(1)).timestamp() as usize,
-//             };
-//             let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET))
-//                 .unwrap();
-
-//             // Return the token as a response
-//             return HttpResponse::Ok().json(TokenResponse { token });
-//         }
-//     }
-
-//     // If authentication fails
-//     HttpResponse::Unauthorized().body("Invalid username or password")
-// }
 
 #[derive(Serialize, Deserialize)]
 struct Claims {
@@ -203,74 +169,66 @@ async fn echo(req_body: String) -> impl Responder {
     get,
     path = "/todos",
     responses(
-        (status = 200, description = "Get all todos", body = [TodoItem])
+        (status = 200, description = "List of todos", body = [TodoItem]),
+        (status = 500, description = "Internal server error")
     )
 )]
 #[get("/todos")]
-async fn get_todos(data: web::Data<TodoList>) -> impl Responder {
-    let todos = data.lock().unwrap();
-    let todos_list: Vec<&TodoItem> = todos.values().collect();
-    HttpResponse::Ok().json(todos_list)
+async fn get_todos(db: web::Data<DbConnection>) -> impl Responder {
+    let conn = db.lock().unwrap(); // Lock the database connection
+    let mut stmt = conn.prepare("SELECT id, title, description, due_date, status FROM tasks").unwrap(); // Prepare SQL statement
+    let todos_iter = stmt.query_map(params![], |row| {
+        Ok(TodoItem {
+            id: row.get(0)?, // Assuming the id is in the first column
+            title: row.get(1)?,
+            description: row.get(2)?,
+            due_date: row.get(3)?, // Assuming due_date can be NULL
+            status: row.get(4)?,
+        })
+    }).unwrap(); // Execute the query
+
+    let todos_list: Vec<TodoItem> = todos_iter.filter_map(Result::ok).collect(); // Collect the results
+
+    HttpResponse::Ok().json(todos_list) // Return the list of todos as JSON
 }
-// #[get("/todos")]
-// async fn get_todos(
-//     data: web::Data<TodoList>,
-//     status: Option<String>,
-//     due_date: Option<String>,
-// ) -> impl Responder {
-//     let todos = data.lock().unwrap();
-//     let filtered_todos: Vec<&TodoItem> = todos.values()
-//         .filter(|todo| {
-//             (status.is_none() || Some(todo.status.clone()) == status) &&
-//             (due_date.is_none() || Some(todo.due_date.clone()) == due_date)
-//         })
-//         .collect();
-//     HttpResponse::Ok().json(filtered_todos)
-// }
 
 #[utoipa::path(
     post,
     path = "/todos",
     request_body = TodoItemRequest,
     responses(
-        (status = 201, description = "Create a new todo", body = TodoItem)
+        (status = 201, description = "Todo added successfully"),
+        (status = 400, description = "Bad request")
     )
 )]
 #[post("/todos")]
-async fn create_todo(
-    data: web::Data<TodoList>,
-    new_todo: web::Json<TodoItemRequest>,
-) -> impl Responder {
-    // Basic validation
-    if new_todo.title.is_empty() || new_todo.status.is_empty() {
-        return HttpResponse::BadRequest().body("Title and status are required.");
-    }
-    
-    // Validate status
-    let valid_statuses = ["todo", "in progress", "done"];
-    if !valid_statuses.contains(&new_todo.status.as_str()) {
-        return HttpResponse::BadRequest().body("Invalid status. Valid statuses are: todo, in progress, done.");
-    }
+async fn create_todo(db: web::Data<DbConnection>, req: web::Json<TodoItemRequest>) -> impl Responder {
+        // Basic validation
+        if req.title.is_empty() || req.status.is_empty() || req.description.is_empty() {
+            return HttpResponse::BadRequest().body("Title, Description and Status are required.");
+        }
+        
+        // Validate status
+        let valid_statuses = ["todo", "in progress", "done"];
+        if !valid_statuses.contains(&req.status.as_str()) {
+            return HttpResponse::BadRequest().body("Invalid status. Valid statuses are: todo, in progress, done.");
+        }
+    let conn = db.lock().unwrap();
+   // let hashed_password = hash(&req.password, DEFAULT_COST).unwrap(); // Hash the password
+   let id = Uuid::new_v4().to_string();
 
-    let mut todos = data.lock().unwrap();
-    let todo_item = TodoItem {
-        id: Uuid::new_v4(),
-        title: new_todo.title.clone(),
-        description: new_todo.description.clone(),
-        due_date: new_todo.due_date.clone(),
-        status: new_todo.status.clone(),
-    };
-    todos.insert(todo_item.id, todo_item.clone());
-    
-    // Log the new todo item
-    info!("Creating new todo: {:?}", todo_item);
-    
-    HttpResponse::Created().json(todo_item)
+    match conn.execute(
+        "INSERT INTO tasks (id, title, description, due_date, status) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![id ,req.title, req.description, req.due_date, req.status],
+    ) {
+        Ok(_) => HttpResponse::Created().body("Task added."),
+        Err(err) => HttpResponse::InternalServerError().body(format!("Failed to add task: {}", err)),
+    }
 }
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get_todos, create_todo, register, login),
+    paths(get_todos, edit_todo_by_id,get_todo_by_id, create_todo, register, login),
     components(schemas(TodoItem, TodoItemRequest, RegisterRequest, LoginRequest, TokenResponse))
 )]
 struct ApiDoc;
@@ -279,13 +237,14 @@ async fn manual_hello() -> impl Responder {
     HttpResponse::Ok().body("Hey there!")
 }
 
-#[derive(Deserialize, ToSchema)]
-struct TodoItemRequest {
+#[derive(Deserialize,ToSchema)]
+struct  TodoItemRequest {
     title: String,
     description: String,
     due_date: Option<String>,
-    status: String, // e.g., "todo", "in progress", "done"
+    status: String, 
 }
+
 
 #[utoipa::path(
     get,
@@ -299,10 +258,20 @@ struct TodoItemRequest {
     )
 )]
 #[get("/todos/{id}")]
-async fn get_todo_by_id(data: web::Data<TodoList>, todo_id: web::Path<Uuid>) -> impl Responder {
-    let todos = data.lock().unwrap();
-    if let Some(todo_item) = todos.get(&todo_id.into_inner()) {
-        HttpResponse::Ok().json(todo_item.clone())
+async fn get_todo_by_id(db: web::Data<DbConnection>, todo_id: web::Path<String>) -> impl Responder {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn.prepare("SELECT id, title, description, due_date, status FROM tasks WHERE id = ?1").unwrap();
+
+    if let Ok(row) = stmt.query_row(params![todo_id.into_inner()], |row| {
+        Ok(TodoItem {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            description: row.get(2)?,
+            due_date: row.get(3)?,
+            status: row.get(4)?,
+        })
+    }) {
+        HttpResponse::Ok().json(row)
     } else {
         HttpResponse::NotFound().body("Todo item not found")
     }
@@ -322,51 +291,83 @@ async fn get_todo_by_id(data: web::Data<TodoList>, todo_id: web::Path<Uuid>) -> 
 )]
 #[put("/todos/{id}")]
 async fn edit_todo_by_id(
-    data: web::Data<TodoList>,
-    todo_id: web::Path<Uuid>,
+    db: web::Data<DbConnection>,
+    todo_id: web::Path<String>,
     update_data: web::Json<TodoItemRequest>,
 ) -> impl Responder {
-    let mut todos = data.lock().unwrap();
-    if let Some(todo_item) = todos.get_mut(&todo_id.into_inner()) {
-        todo_item.title = update_data.title.clone();
-        todo_item.description = update_data.description.clone();
-        todo_item.due_date = update_data.due_date.clone();
-        todo_item.status = update_data.status.clone();
-        HttpResponse::Ok().json(todo_item.clone())
-    } else {
-        HttpResponse::NotFound().body("Todo item not found")
+    let conn = db.lock().unwrap();
+    
+    // Update the todo item in the database
+    match conn.execute(
+        "UPDATE tasks SET title = ?1, description = ?2, due_date = ?3, status = ?4 WHERE id = ?5",
+        params![update_data.title, update_data.description, update_data.due_date, update_data.status, todo_id.into_inner()],
+    ) {
+        Ok(updated_rows) if updated_rows > 0 => {
+            HttpResponse::Ok().body("Todo item updated successfully.")
+        }
+        _ => HttpResponse::NotFound().body("Todo item not found"),
     }
 }
 
 
+#[utoipa::path(
+    put,
+    path = "/todos/{id}",
+    request_body = TodoItemRequest,
+    params(
+        ("id" = String, Path, description = "Unique identifier of the todo item")
+    ),
+    responses(
+        (status = 200, description = "Todo item updated successfully", body = TodoItem),
+        (status = 404, description = "Todo item not found")
+    )
+)]
 #[put("/todos/{id}")]
 async fn update_todo(
-    data: web::Data<TodoList>,
-    todo_id: web::Path<Uuid>,
+    db: web::Data<DbConnection>,
+    todo_id: web::Path<String>,
     update_data: web::Json<TodoItemRequest>,
 ) -> impl Responder {
-    let mut todos = data.lock().unwrap();
-    if let Some(todo_item) = todos.get_mut(&todo_id.into_inner()) {
-        todo_item.title = update_data.title.clone();
-        todo_item.description = update_data.description.clone();
-        todo_item.due_date = update_data.due_date.clone();
-        todo_item.status = update_data.status.clone();
-        HttpResponse::Ok().json(todo_item.clone())
-    } else {
-        HttpResponse::NotFound().body("Todo item not found")
+    let conn = db.lock().unwrap();
+
+    match conn.execute(
+        "UPDATE tasks SET title = ?1, description = ?2, due_date = ?3, status = ?4 WHERE id = ?5",
+        params![update_data.title, update_data.description, update_data.due_date, update_data.status, todo_id.into_inner()],
+    ) {
+        Ok(updated_rows) if updated_rows > 0 => {
+            HttpResponse::Ok().body("Todo item updated successfully.")
+        }
+        _ => HttpResponse::NotFound().body("Todo item not found"),
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/todos/{id}",
+    params(
+        ("id" = String, Path, description = "Unique identifier of the todo item")
+    ),
+    responses(
+        (status = 204, description = "Todo item deleted successfully"),
+        (status = 404, description = "Todo item not found")
+    )
+)]
 #[delete("/todos/{id}")]
 async fn delete_todo(
-    data: web::Data<TodoList>,
-    todo_id: web::Path<Uuid>,
+    db: web::Data<DbConnection>,
+    todo_id: web::Path<String>, // Using String here since ID is stored as TEXT in the database
 ) -> impl Responder {
-    let mut todos = data.lock().unwrap();
-    if todos.remove(&todo_id.into_inner()).is_some() {
-        HttpResponse::NoContent().finish()
-    } else {
-        HttpResponse::NotFound().body("Todo item not found")
+    let conn = db.lock().unwrap();
+
+    match conn.execute("DELETE FROM tasks WHERE id = ?1", params![todo_id.into_inner()]) {
+        Ok(rows_deleted) => {
+            if rows_deleted > 0 {
+                HttpResponse::NoContent().finish() // No content indicates successful deletion
+            } else {
+                HttpResponse::NotFound().body("Todo item not found") // Item not found
+            }
+        },
+        Err(err) => HttpResponse::InternalServerError().body(format!("Failed to delete task: {}", err)), // Handle error
     }
 }
 

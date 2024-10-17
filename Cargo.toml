@@ -1,5 +1,5 @@
 [package]
-name = "hello-world-actix"
+name = "imagine-todo-api"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,8 +14,8 @@ env_logger = "0.10"
 log = "0.4"
 jsonwebtoken ="9"
 dotenv = "0.15.0"
-rusqlite = { version = "0.26", features = ["bundled"] }  # SQLite support
-bcrypt = "0.13"  # For hashing passwords
+rusqlite = { version = "0.26", features = ["bundled"] } 
+bcrypt = "0.13" 
 utoipa-swagger-ui = { version = "8", features = ["actix-web"] }
 utoipa = "5.1.1"
 chrono = "0.4.28"
