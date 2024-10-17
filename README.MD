@@ -55,7 +55,6 @@
 
    cd imagine-todo-api
 ```
-
 2. **Install Dependencies**
 
     ```bash
@@ -69,7 +68,7 @@
 **API Endpoints**
     Here are the key API endpoints you can use:
 
-SwaggerUI  is avaialble at http://127.0.0.1:8080/swagger-ui/
+SwaggerUI  is available at http://127.0.0.1:8080/swagger-ui/
 
 **User Management**
 

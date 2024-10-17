@@ -1,6 +1,6 @@
-use actix_web::{get, post, put, delete, middleware, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, put, delete, web::Bytes, error::PayloadError, middleware, web, App,http::header::AUTHORIZATION, HttpResponse,HttpRequest, HttpServer, Responder,Error, HttpMessage,dev::ServiceRequest, dev::ServiceResponse };
 use utoipa_swagger_ui::SwaggerUi;
-use jsonwebtoken::{encode, decode, Header ,EncodingKey};
+use jsonwebtoken::{encode, decode, Header ,EncodingKey,DecodingKey};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -14,6 +14,8 @@ use actix_files::Files;
 use utoipa::{{OpenApi,ToSchema}};
 use std::time::Duration;
 use chrono::{DateTime, Utc};
+use futures::future::{ok, ready, Ready};
+use std::sync::Arc; // Use Arc for thread-safe sharing
 
 
 
@@ -21,6 +23,7 @@ use chrono::{DateTime, Utc};
 struct User {
     username: String,
     password: String,
+    is_admin: bool,
 }
 
 #[derive(Deserialize,ToSchema)]
@@ -48,6 +51,7 @@ struct TodoItem {
     description: String,
     due_date: Option<String>, // Use Option<String> for optional due date
     status: String, // e.g., "todo", "in progress", "done"
+    assignee: String,
 }
 
 
@@ -58,6 +62,8 @@ type TodoList = Mutex<HashMap<Uuid, TodoItem>>;
 
 // JWT secret
 const JWT_SECRET: &[u8] = b"your_jwt_secret"; // Replace with a secure secret
+
+
 
 // Use a Mutex to wrap the Connection for thread-safe access
 type DbConnection = Mutex<Connection>;
@@ -79,7 +85,9 @@ fn init_db() -> DbConnection {
             title TEXT NOT NULL,
             description TEXT NOT NULL,
             due_date TEXT NOT NULL,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            assignee TEXT NOT NULL,
+            FOREIGN KEY (assignee) REFERENCES users(username)
         )",
         [],
     ).unwrap();
@@ -120,6 +128,8 @@ async fn register(db: web::Data<DbConnection>, req: web::Json<RegisterRequest>) 
         (status = 400, description = "Bad request")
     )
 )]
+
+
 //User login and token generation
 #[post("/login")]
 async fn login(db: web::Data<DbConnection>, req: web::Json<LoginRequest>) -> impl Responder {
@@ -134,7 +144,7 @@ async fn login(db: web::Data<DbConnection>, req: web::Json<LoginRequest>) -> imp
         if verify(&req.password, &stored_hashed_password).unwrap() {
             let claims = Claims {
                 sub: req.username.clone(),
-                exp: (chrono::Utc::now() + chrono::Duration::days(1)).timestamp() as usize,
+                exp: (chrono::Utc::now() + chrono::Duration::days(1)).timestamp() as usize
             };
             let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET))
                 .unwrap();
@@ -177,7 +187,8 @@ async fn echo(req_body: String) -> impl Responder {
 #[get("/todos")]
 async fn get_todos(db: web::Data<DbConnection>) -> impl Responder {
     let conn = db.lock().unwrap(); // Lock the database connection
-    let mut stmt = conn.prepare("SELECT id, title, description, due_date, status FROM tasks").unwrap(); // Prepare SQL statement
+
+    let mut stmt = conn.prepare("SELECT id, title, description, due_date, status, assignee FROM tasks").unwrap(); // Prepare SQL statement
     let todos_iter = stmt.query_map(params![], |row| {
         Ok(TodoItem {
             id: row.get(0)?, // Assuming the id is in the first column
@@ -185,6 +196,7 @@ async fn get_todos(db: web::Data<DbConnection>) -> impl Responder {
             description: row.get(2)?,
             due_date: row.get(3)?, // Assuming due_date can be NULL
             status: row.get(4)?,
+            assignee: row.get(5)?,
         })
     }).unwrap(); // Execute the query
 
@@ -199,14 +211,20 @@ async fn get_todos(db: web::Data<DbConnection>) -> impl Responder {
     request_body = TodoItemRequest,
     responses(
         (status = 201, description = "Todo added successfully"),
-        (status = 400, description = "Bad request")
+        (status = 400, description = "Bad request"),
+        (status = 401, description = "Unauthorized") // Respond for unauthorized users
     )
 )]
 #[post("/todos")]
-async fn create_todo(db: web::Data<DbConnection>, req: web::Json<TodoItemRequest>) -> impl Responder {
+async fn create_todo(
+    db: web::Data<DbConnection>,
+    req: web::Json<TodoItemRequest>,
+    req_head: HttpRequest,
+) -> impl Responder {
+    
         // Basic validation
-        if req.title.is_empty() || req.status.is_empty() || req.description.is_empty() {
-            return HttpResponse::BadRequest().body("Title, Description and Status are required.");
+        if req.title.is_empty() || req.status.is_empty() || req.description.is_empty() || req.assignee.is_empty() {
+            return HttpResponse::BadRequest().body("Title, Description, Status, and Assignee are required.");
         }
         
         // Validate status
@@ -215,13 +233,19 @@ async fn create_todo(db: web::Data<DbConnection>, req: web::Json<TodoItemRequest
             return HttpResponse::BadRequest().body("Invalid status. Valid statuses are: todo, in progress, done.");
         }
     let conn = db.lock().unwrap();
-   // let hashed_password = hash(&req.password, DEFAULT_COST).unwrap(); // Hash the password
+   
+    let mut stmt = conn.prepare("SELECT COUNT(*) FROM users WHERE username = ?1").unwrap();
+    let count: i64 = stmt.query_row(params![req.assignee], |row| row.get(0)).unwrap_or(0);
+    if count == 0 {
+        return HttpResponse::NotFound().body("Assignee not found.");
+    }
+     
    let id = Uuid::new_v4().to_string();
 
-    match conn.execute(
-        "INSERT INTO tasks (id, title, description, due_date, status) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id ,req.title, req.description, req.due_date, req.status],
-    ) {
+   match conn.execute(
+    "INSERT INTO tasks (id, title, description, due_date, status, assignee) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    params![id, req.title, req.description, req.due_date, req.status, req.assignee],
+) {
         Ok(_) => HttpResponse::Created().body("Task added."),
         Err(err) => HttpResponse::InternalServerError().body(format!("Failed to add task: {}", err)),
     }
@@ -234,9 +258,6 @@ async fn create_todo(db: web::Data<DbConnection>, req: web::Json<TodoItemRequest
 )]
 struct ApiDoc;
 
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
-}
 
 #[derive(Deserialize,ToSchema)]
 struct  TodoItemRequest {
@@ -244,6 +265,7 @@ struct  TodoItemRequest {
     description: String,
     due_date: Option<String>,
     status: String, 
+    assignee: String,
 }
 
 
@@ -261,7 +283,7 @@ struct  TodoItemRequest {
 #[get("/todos/{id}")]
 async fn get_todo_by_id(db: web::Data<DbConnection>, todo_id: web::Path<String>) -> impl Responder {
     let conn = db.lock().unwrap();
-    let mut stmt = conn.prepare("SELECT id, title, description, due_date, status FROM tasks WHERE id = ?1").unwrap();
+    let mut stmt = conn.prepare("SELECT id, title, description, due_date, status, assignee FROM tasks WHERE id = ?1").unwrap();
 
     if let Ok(row) = stmt.query_row(params![todo_id.into_inner()], |row| {
         Ok(TodoItem {
@@ -270,6 +292,7 @@ async fn get_todo_by_id(db: web::Data<DbConnection>, todo_id: web::Path<String>)
             description: row.get(2)?,
             due_date: row.get(3)?,
             status: row.get(4)?,
+            assignee: row.get(5)?,
         })
     }) {
         HttpResponse::Ok().json(row)
@@ -278,6 +301,7 @@ async fn get_todo_by_id(db: web::Data<DbConnection>, todo_id: web::Path<String>)
     }
 }
 
+//assuming assignee can be updated
 #[utoipa::path(
     put,
     path = "/todos/{id}",
@@ -287,7 +311,8 @@ async fn get_todo_by_id(db: web::Data<DbConnection>, todo_id: web::Path<String>)
     ),
     responses(
         (status = 200, description = "Todo item updated successfully", body = TodoItem),
-        (status = 404, description = "Todo item not found")
+        (status = 404, description = "Todo item not found"),
+        (status = 400, description = "Bad request")
     )
 )]
 #[put("/todos/{id}")]
@@ -297,11 +322,24 @@ async fn edit_todo_by_id(
     update_data: web::Json<TodoItemRequest>,
 ) -> impl Responder {
     let conn = db.lock().unwrap();
-    
+
+    // Validate status
+    let valid_statuses = ["todo", "in progress", "done"];
+    if !valid_statuses.contains(&update_data.status.as_str()) {
+        return HttpResponse::BadRequest().body("Invalid status. Valid statuses are: todo, in progress, done.");
+    }
+
+    // Check if the assignee exists
+    let mut stmt = conn.prepare("SELECT COUNT(*) FROM users WHERE username = ?1").unwrap();
+    let count: i64 = stmt.query_row(params![update_data.assignee], |row| row.get(0)).unwrap_or(0);
+    if count == 0 {
+        return HttpResponse::NotFound().body("Assignee not found.");
+    }
+
     // Update the todo item in the database
     match conn.execute(
-        "UPDATE tasks SET title = ?1, description = ?2, due_date = ?3, status = ?4 WHERE id = ?5",
-        params![update_data.title, update_data.description, update_data.due_date, update_data.status, todo_id.into_inner()],
+        "UPDATE tasks SET title = ?1, description = ?2, due_date = ?3, status = ?4, assignee = ?5 WHERE id = ?6",
+        params![update_data.title, update_data.description, update_data.due_date, update_data.status, update_data.assignee, todo_id.into_inner()],
     ) {
         Ok(updated_rows) if updated_rows > 0 => {
             HttpResponse::Ok().body("Todo item updated successfully.")
@@ -399,7 +437,7 @@ async fn main() -> std::io::Result<()> {
             .service(Files::new("/static", "static/").prefer_utf8(true))
             .service(register)
             .service(login)
-            .service(protected) // Add protected endpoint
+         //   .service(protected) // Add protected endpoint
             .service(get_todos)
             .service(create_todo)
             .service(get_todo_by_id)
@@ -407,7 +445,6 @@ async fn main() -> std::io::Result<()> {
             .service(update_todo)
             .service(delete_todo)
             .service(index)
-            .service(web::scope("").route("/hey", web::get().to(manual_hello)))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
