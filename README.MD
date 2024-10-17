@@ -50,14 +50,19 @@
 
 1. **Clone the Repository**
 
-   ```bash
+```bash
    git clone https://github.com/cosmasken/imagine-todo-api.git
+
    cd imagine-todo-api
+```
+
 2. **Install Dependencies**
+
     ```bash
    cargo build
 
 3. **Install Dependencies**
+
     ```bash
    cargo run
 
@@ -65,37 +70,51 @@
     Here are the key API endpoints you can use:
 
 **User Management**
+
 - POST /register: Create a new user account.
 - POST /login: Obtain a token by providing valid credentials.
+
 **Task Management**
+
 -POST /tasks: Create a new task.
+
 -GET /tasks: Retrieve a list of all tasks.
+
 GET /tasks/{id}: Retrieve details of a specific task by its ID.
+
 PUT /tasks/{id}: Edit a specific task by its ID.
+
 DELETE /tasks/{id}: Delete a specific task by its ID.
 
 **Usage Examples**
 
 **Register a User**
+
 ```bash
     curl -X POST http://localhost:8080/register \
     -H "Content-Type: application/json" \
     -d '{"username": "testuser", "password": "testpass"}'
 ```
+
 **Login a User**
+
 ```bash
     curl -X POST http://localhost:8080/login \
     -H "Content-Type: application/json" \
     -d '{"username": "testuser", "password": "testpass"}'
 ```
+
 **Create a New Task**
+
 ```bash
     curl -X POST http://localhost:8080/tasks \
     -H "Authorization: Bearer YOUR_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"title": "Test Task", "description": "Description for the test task", "due_date": "2024-12-31", "status": "todo"}'
 ```
+
 **Retrieve All Tasks**
+
 ```bash
     curl -X GET http://localhost:8080/tasks \
     -H "Authorization: Bearer YOUR_TOKEN"
