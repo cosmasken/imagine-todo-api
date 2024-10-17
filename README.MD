@@ -69,6 +69,8 @@
 **API Endpoints**
     Here are the key API endpoints you can use:
 
+SwaggerUI  is avaialble at http://127.0.0.1:8080/swagger-ui/
+
 **User Management**
 
 - POST /register: Create a new user account.
@@ -113,9 +115,3 @@
     -d '{"title": "Test Task", "description": "Description for the test task", "due_date": "2024-12-31", "status": "todo"}'
 ```
 
-**Retrieve All Tasks**
-
-```bash
-    curl -X GET http://localhost:8080/tasks \
-    -H "Authorization: Bearer YOUR_TOKEN"
-```
