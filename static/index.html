@@ -1,0 +1,202 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+    <title>Todo API Test</title>
+    <link rel="stylesheet" type="text/css" href="/static/styles.css">
+</head>
+<body>
+    <h1>Todo API Test</h1>
+    <form id="todoForm">
+        <input type="text" id="title" placeholder="Title" required>
+        <input type="text" id="description" placeholder="Description" required>
+        <input type="text" id="date" placeholder="Date" required>
+        <input type="text" id="status" placeholder="status" required>
+        <button type="submit">Add Todo</button>
+    </form>
+    <div id="response"></div>
+
+    <script>
+        document.getElementById('todoForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const date = document.getElementById('date').value;
+            const status = document.getElementById('status').value;
+
+            const response = await fetch('http://127.0.0.1:8080/todos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ title, description, date, status  })
+            });
+
+            const data = await response.json();
+            document.getElementById('response').innerText = JSON.stringify(data, null, 2);
+        });
+    </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Testing Interface</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .swagger-like {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="p-8">
+
+    <div class="swagger-like">
+        <h1 class="text-2xl font-bold mb-4">API Testing Interface</h1>
+
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Register User</h2>
+            <input id="username" type="text" placeholder="username" class="w-full p-2 mb-2 border rounded">
+            <input id="password" type="password" placeholder="password" class="w-full p-2 mb-2 border rounded">
+            <button onclick="" class="bg-blue-500 text-white px-4 py-2 rounded">Register</button>
+        </div>
+
+        <!-- Create Todo Section -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Create Todo</h2>
+            <input id="title" type="text" placeholder="Title" class="w-full p-2 mb-2 border rounded">
+            <input id="description" type="text" placeholder="Description" class="w-full p-2 mb-2 border rounded">
+            <input id="due_date" type="date" placeholder="Due Date" class="w-full p-2 mb-2 border rounded">
+            <!-- <input id="status" type="text" placeholder="Status" class="w-full p-2 mb-2 border rounded"> -->
+            <button onclick="createTodo()" class="bg-blue-500 text-white px-4 py-2 rounded">Create Todo</button>
+        </div>
+
+        <!-- Get Todos Section -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Get Todos</h2>
+            <button onclick="getTodos()" class="bg-green-500 text-white px-4 py-2 rounded">Fetch Todos</button>
+            <div id="todos-list" class="mt-4"></div>
+        </div>
+
+        <!-- Update Todo Section -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Update Todo</h2>
+            <input id="update_id" type="text" placeholder="Todo ID" class="w-full p-2 mb-2 border rounded">
+            <input id="update_title" type="text" placeholder="New Title" class="w-full p-2 mb-2 border rounded">
+            <button onclick="updateTodo()" class="bg-yellow-500 text-white px-4 py-2 rounded">Update Todo</button>
+        </div>
+
+        <!-- Delete Todo Section -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Delete Todo</h2>
+            <input id="delete_id" type="text" placeholder="Todo ID" class="w-full p-2 mb-2 border rounded">
+            <button onclick="deleteTodo()" class="bg-red-500 text-white px-4 py-2 rounded">Delete Todo</button>
+        </div>
+    </div>
+
+    <script>
+        async function createTodo() {
+            const title = document.getElementById("title").value;
+            const description = document.getElementById("description").value;
+            const dueDate = document.getElementById("due_date").value;
+           // const status = document.getElementById("status").value;
+
+            const response = await fetch('/todos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, description, due_date: dueDate, status: 'todo' })
+            });
+
+            // if (response.ok) {
+            //     alert('Todo created successfully');
+            // } else {
+            //     alert('Failed to create todo');
+            // }
+            if (response.ok) {
+                swal("Success", "Todo created successfully", "success");
+            } else {
+                swal("Error", "Failed to create todo", "error");
+            }
+        }
+
+        async function getTodos() {
+            const response = await fetch('/todos');
+            const todos = await response.json();
+
+            const todosList = document.getElementById("todos-list");
+            todosList.innerHTML = '';
+
+            todos.forEach(todo => {
+                const div = document.createElement('div');
+                div.className = 'p-2 mb-2 border-b';
+                div.innerText = `ID: ${todo.id}, Title: ${todo.title}, Status: ${todo.status}`;
+                todosList.appendChild(div);
+            });
+        }
+
+        async function updateTodo() {
+            const id = document.getElementById("update_id").value;
+            const title = document.getElementById("update_title").value;
+
+            const response = await fetch(`/todos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title })
+            });
+
+            // if (response.ok) {
+            //     alert('Todo updated successfully');
+            // } else {
+            //     alert('Failed to update todo');
+            // }
+            if (response.ok) {
+                swal("Success", "Todo updated successfully", "success");
+            } else {
+                swal("Error", "Failed to update todo", "error");
+            }
+        }
+
+        async function deleteTodo() {
+            const id = document.getElementById("delete_id").value;
+
+            const response = await fetch(`/todos/${id}`, {
+                method: 'DELETE'
+            });
+
+            // if (response.ok) {
+            //     alert('Todo deleted successfully');
+            // } else {
+            //     alert('Failed to delete todo');
+            // }
+            if (response.ok) {
+                swal("Success", "Todo deleted successfully", "success");
+            } else {
+                swal("Error", "Failed to delete todo", "error");
+            }
+        }
+
+        async function register() {
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            const response = await fetch(`/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+           console.log('register response',response); 
+        }
+    </script>
+</body>
+</html>
