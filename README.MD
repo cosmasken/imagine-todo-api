@@ -65,14 +65,14 @@
     Here are the key API endpoints you can use:
 
 **User Management**
-    - POST /register: Create a new user account.
-    - POST /login: Obtain a token by providing valid credentials.
+- POST /register: Create a new user account.
+- POST /login: Obtain a token by providing valid credentials.
 **Task Management**
-    POST /tasks: Create a new task.
-    GET /tasks: Retrieve a list of all tasks.
-    GET /tasks/{id}: Retrieve details of a specific task by its ID.
-    PUT /tasks/{id}: Edit a specific task by its ID.
-    DELETE /tasks/{id}: Delete a specific task by its ID.
+-POST /tasks: Create a new task.
+-GET /tasks: Retrieve a list of all tasks.
+GET /tasks/{id}: Retrieve details of a specific task by its ID.
+PUT /tasks/{id}: Edit a specific task by its ID.
+DELETE /tasks/{id}: Delete a specific task by its ID.
 
 **Usage Examples**
 
