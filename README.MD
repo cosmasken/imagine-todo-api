@@ -77,26 +77,26 @@
 **Usage Examples**
 
 **Register a User**
-    ```bash
+```bash
     curl -X POST http://localhost:8080/register \
     -H "Content-Type: application/json" \
     -d '{"username": "testuser", "password": "testpass"}'
-    ```
+```
 **Login a User**
 ```bash
-curl -X POST http://localhost:8080/login \
--H "Content-Type: application/json" \
--d '{"username": "testuser", "password": "testpass"}'
+    curl -X POST http://localhost:8080/login \
+    -H "Content-Type: application/json" \
+    -d '{"username": "testuser", "password": "testpass"}'
 ```
 **Create a New Task**
 ```bash
-curl -X POST http://localhost:8080/tasks \
--H "Authorization: Bearer YOUR_TOKEN" \
--H "Content-Type: application/json" \
--d '{"title": "Test Task", "description": "Description for the test task", "due_date": "2024-12-31", "status": "todo"}'
+    curl -X POST http://localhost:8080/tasks \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"title": "Test Task", "description": "Description for the test task", "due_date": "2024-12-31", "status": "todo"}'
 ```
 **Retrieve All Tasks**
 ```bash
-curl -X GET http://localhost:8080/tasks \
--H "Authorization: Bearer YOUR_TOKEN"
+    curl -X GET http://localhost:8080/tasks \
+    -H "Authorization: Bearer YOUR_TOKEN"
 ```
