@@ -76,15 +76,15 @@
 
 **Task Management**
 
-- POST /tasks: Create a new task.
+- POST /todos: Create a new task.
 
-- GET /tasks: Retrieve a list of all tasks.
+- GET /todos: Retrieve a list of all tasks.
 
-- GET /tasks/{id}: Retrieve details of a specific task by its ID.
+- GET /todos/{id}: Retrieve details of a specific task by its ID.
 
-- PUT /tasks/{id}: Edit a specific task by its ID.
+- PUT /todos/{id}: Edit a specific task by its ID.
 
-- DELETE /tasks/{id}: Delete a specific task by its ID.
+- DELETE /todos/{id}: Delete a specific task by its ID.
 
 **Usage Examples**
 
