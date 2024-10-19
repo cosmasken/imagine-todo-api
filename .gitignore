@@ -2,4 +2,5 @@
 .env
 
 todo.dbs
-Cargo.lock
+Cargo.lock.shuttle*
+Secrets*.toml

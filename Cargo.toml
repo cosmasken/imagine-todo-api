@@ -21,3 +21,7 @@ utoipa-swagger-ui = { version = "8", features = ["actix-web"] }
 utoipa = "5.1.1"
 chrono = "0.4.28"
 futures = "0.3"
+derive_more = { version = "1.0.0", features = ["display", "error", "display"] }
+shuttle-actix-web = "0.48"
+shuttle-runtime = "0.48"
+
